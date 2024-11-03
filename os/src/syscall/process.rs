@@ -55,11 +55,13 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
     trace!("kernel: sys_task_info");
     unsafe {
+        let current_time = get_time();
         let record = get_task_info_record();
         // println!("{:#?}", record);
         (*_ti).status = get_task_status();
-        (*_ti).time = get_time() - record.task_start_time;
+        (*_ti).time = current_time / 10_000 - record.task_start_time / 10_000;
         (*_ti).syscall_times = record.task_sys_call_times.clone();
+        // println!("{}, {}, {}", current_time, record.task_start_time, (*_ti).time);
         // println!("{:#?}", record);
     }
     0

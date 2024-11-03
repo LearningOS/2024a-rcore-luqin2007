@@ -87,6 +87,7 @@ impl TaskManager {
         task0.task_status = TaskStatus::Running;
         // 初始化运行时间
         task0.task_info_record.task_start_time = get_time();
+        // println!("start 0 at {}", task0.task_info_record.task_start_time);
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
         drop(inner);
         let mut _unused = TaskContext::zero_init();
@@ -132,7 +133,8 @@ impl TaskManager {
             inner.current_task = next;
             // 初始化运行时间
             if inner.tasks[next].task_info_record.task_start_time == 0 {
-                inner.tasks[next].task_info_record.task_start_time = get_time()
+                inner.tasks[next].task_info_record.task_start_time = get_time();
+                // println!("start {} at {}", next, inner.tasks[next].task_info_record.task_start_time);
             }
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
@@ -154,7 +156,9 @@ impl TaskManager {
 
     fn get_task_status(&self) -> TaskStatus {
         let inner = self.inner.exclusive_access();
-        inner.tasks[inner.current_task].task_status
+        let cur = inner.current_task;
+        // println!("get_status {}", cur);
+        inner.tasks[cur].task_status
     }
 
     fn record_syscall(&self, code: usize) {
