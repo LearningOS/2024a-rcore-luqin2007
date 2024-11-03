@@ -3,7 +3,7 @@ use crate::{
     config::MAX_SYSCALL_NUM,
     task::{exit_current_and_run_next, get_task_info_record, get_task_status,
            suspend_current_and_run_next, TaskStatus},
-    timer::{get_time, get_time_us},
+    timer::get_time_us,
 };
 
 #[repr(C)]
@@ -54,15 +54,21 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 /// YOUR JOB: Finish sys_task_info to pass testcases
 pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
     trace!("kernel: sys_task_info");
+    let current_time = get_time_us();
+    let record = get_task_info_record();
+
+    pub fn map_time(us: usize) -> usize {
+        let sec = us / 1_000_000;
+        let usec = us % 1_000_000;
+        (sec & 0xffff) * 1000 + usec / 1000
+    }
+
+    let running_time = map_time(current_time) - map_time(record.task_start_time);
+    // println!("running: {} - {} ~ {}", record.task_start_time, current_time, running_time);
     unsafe {
-        let current_time = get_time();
-        let record = get_task_info_record();
-        // println!("{:#?}", record);
         (*_ti).status = get_task_status();
-        (*_ti).time = current_time / 10_000 - record.task_start_time / 10_000;
+        (*_ti).time = running_time;
         (*_ti).syscall_times = record.task_sys_call_times.clone();
-        // println!("{}, {}, {}", current_time, record.task_start_time, (*_ti).time);
-        // println!("{:#?}", record);
     }
     0
 }

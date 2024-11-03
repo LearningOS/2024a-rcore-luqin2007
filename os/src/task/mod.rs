@@ -21,7 +21,7 @@ use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskInfoRecord, TaskStatus};
 
-use crate::timer::get_time;
+use crate::timer::get_time_us;
 pub use context::TaskContext;
 
 /// The task manager, where all the tasks are managed.
@@ -86,7 +86,7 @@ impl TaskManager {
         let task0 = &mut inner.tasks[0];
         task0.task_status = TaskStatus::Running;
         // 初始化运行时间
-        task0.task_info_record.task_start_time = get_time();
+        task0.task_info_record.task_start_time = get_time_us();
         // println!("start 0 at {}", task0.task_info_record.task_start_time);
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
         drop(inner);
@@ -133,7 +133,7 @@ impl TaskManager {
             inner.current_task = next;
             // 初始化运行时间
             if inner.tasks[next].task_info_record.task_start_time == 0 {
-                inner.tasks[next].task_info_record.task_start_time = get_time();
+                inner.tasks[next].task_info_record.task_start_time = get_time_us();
                 // println!("start {} at {}", next, inner.tasks[next].task_info_record.task_start_time);
             }
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
@@ -154,6 +154,7 @@ impl TaskManager {
         inner.tasks[inner.current_task].task_info_record.clone()
     }
 
+    /// ch3 获取任务当前状态
     fn get_task_status(&self) -> TaskStatus {
         let inner = self.inner.exclusive_access();
         let cur = inner.current_task;
@@ -161,10 +162,11 @@ impl TaskManager {
         inner.tasks[cur].task_status
     }
 
-    fn record_syscall(&self, code: usize) {
+    /// ch3 记录一次系统调用
+    fn record_syscall(&self, syscall_id: usize) {
         let mut inner = self.inner.exclusive_access();
         let cur = inner.current_task;
-        inner.tasks[cur].task_info_record.task_sys_call_times[code] += 1;
+        inner.tasks[cur].task_info_record.task_sys_call_times[syscall_id] += 1;
     }
 }
 
@@ -212,6 +214,6 @@ pub fn get_task_status() -> TaskStatus {
 }
 
 /// ch3 记录一次系统调用
-pub fn record_syscall(code: usize) {
-    TASK_MANAGER.record_syscall(code);
+pub fn record_syscall(syscall_id: usize) {
+    TASK_MANAGER.record_syscall(syscall_id);
 }
