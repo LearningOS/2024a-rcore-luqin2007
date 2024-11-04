@@ -262,6 +262,34 @@ impl MemorySet {
             false
         }
     }
+
+    /// 检查给定地址段是否冲突
+    pub fn is_conflict(&self, start: &VirtAddr, end: &VirtAddr) -> bool {
+        for area in self.areas.iter() {
+            let range = area.vpn_range;
+            if range.get_start() < end.ceil() || range.get_end() > start.floor() {
+                continue;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /// 释放地址段
+    pub fn remove_framed_area(&mut self, start: VirtAddr, end: VirtAddr) -> bool {
+        let match_area = |area: &MapArea| {
+            let range = area.vpn_range;
+            range.get_start() == start.floor() && range.get_end() == end.ceil()
+        };
+
+        if let Some(index) = self.areas.iter().position(match_area) {
+            self.areas[index].unmap(&mut self.page_table);
+            self.areas.remove(index);
+            true
+        } else {
+            false
+        }
+    }
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {

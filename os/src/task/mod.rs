@@ -15,12 +15,14 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::{VirtAddr, MapPermission};
 use crate::sync::UPSafeCell;
+use crate::timer::get_time_us;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
 use lazy_static::*;
 use switch::__switch;
-pub use task::{TaskControlBlock, TaskStatus};
+pub use task::{TaskControlBlock, TaskStatus, TaskInfoRecord};
 
 pub use context::TaskContext;
 
@@ -79,6 +81,7 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let next_task = &mut inner.tasks[0];
         next_task.task_status = TaskStatus::Running;
+        next_task.task_info_record.task_start_time = get_time_us();
         let next_task_cx_ptr = &next_task.task_cx as *const TaskContext;
         drop(inner);
         let mut _unused = TaskContext::zero_init();
@@ -140,6 +143,9 @@ impl TaskManager {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
+            if inner.tasks[next].task_info_record.task_start_time == 0 {
+                inner.tasks[next].task_info_record.task_start_time = get_time_us();
+            }
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
@@ -152,6 +158,46 @@ impl TaskManager {
         } else {
             panic!("All applications completed!");
         }
+    }
+
+    fn get_task_info_record(&self) -> TaskInfoRecord {
+        let inner = self.inner.exclusive_access();
+        inner.tasks[inner.current_task].task_info_record.clone()
+    }
+
+    /// ch3 获取任务当前状态
+    fn get_task_status(&self) -> TaskStatus {
+        let inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        // println!("get_status {}", cur);
+        inner.tasks[cur].task_status
+    }
+
+    /// ch3 记录一次系统调用
+    fn record_syscall(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur].task_info_record.task_sys_call_times[syscall_id] += 1;
+    }
+
+    /// ch4 查询某段地址是否冲突
+    fn mem_conflict(&self, start: &VirtAddr, end: &VirtAddr) -> bool {
+        let inner = self.inner.exclusive_access();
+        inner.tasks[inner.current_task].memory_set.is_conflict(start, end)
+    }
+
+    /// ch4 申请内存
+    fn mem_map(&self, start: VirtAddr, end: VirtAddr, permission: MapPermission) {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur].memory_set.insert_framed_area(start, end, permission);
+    }
+
+    /// ch4 释放内存
+    fn mem_unmap(&self, start: VirtAddr, end: VirtAddr) -> bool {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur].memory_set.remove_framed_area(start, end)
     }
 }
 
@@ -201,4 +247,34 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+/// ch3 获取运行时系统调用信息记录
+pub fn get_task_info_record() -> TaskInfoRecord {
+    TASK_MANAGER.get_task_info_record()
+}
+
+/// ch3 获取任务当前状态
+pub fn get_task_status() -> TaskStatus {
+    TASK_MANAGER.get_task_status()
+}
+
+/// ch3 记录一次系统调用
+pub fn record_syscall(syscall_id: usize) {
+    TASK_MANAGER.record_syscall(syscall_id);
+}
+
+/// ch4 查询某段地址是否冲突
+pub fn mem_conflict(start: &VirtAddr, end: &VirtAddr) -> bool {
+    TASK_MANAGER.mem_conflict(start, end)
+}
+
+/// ch4 申请内存
+pub fn mem_map(start: VirtAddr, end: VirtAddr, permission: MapPermission) {
+    TASK_MANAGER.mem_map(start, end, permission);
+}
+
+/// ch4 释放内存
+pub fn mem_unmap(start: VirtAddr, end: VirtAddr) -> bool {
+    TASK_MANAGER.mem_unmap(start, end)
 }

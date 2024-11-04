@@ -1,6 +1,6 @@
 //! Types related to task management
 use super::TaskContext;
-use crate::config::TRAP_CONTEXT_BASE;
+use crate::config::{MAX_SYSCALL_NUM, TRAP_CONTEXT_BASE};
 use crate::mm::{
     kernel_stack_position, MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE,
 };
@@ -28,6 +28,18 @@ pub struct TaskControlBlock {
 
     /// Program break
     pub program_brk: usize,
+
+    /// ch3 记录运行时系统调用信息
+    pub task_info_record: TaskInfoRecord,
+}
+
+/// ch3 记录运行时系统调用信息
+#[derive(Copy, Clone, Debug)]
+pub struct TaskInfoRecord {
+    /// 程序启动时间
+    pub task_start_time: usize,
+    /// 系统调用及次数
+    pub task_sys_call_times: [u32;MAX_SYSCALL_NUM],
 }
 
 impl TaskControlBlock {
@@ -63,6 +75,10 @@ impl TaskControlBlock {
             base_size: user_sp,
             heap_bottom: user_sp,
             program_brk: user_sp,
+            task_info_record: TaskInfoRecord {
+                task_start_time: 0,
+                task_sys_call_times: [0; MAX_SYSCALL_NUM],
+            },
         };
         // prepare TrapContext in user space
         let trap_cx = task_control_block.get_trap_cx();
